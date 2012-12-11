@@ -7,8 +7,8 @@ var fsys = require('fs');
 var util = require('util');
 var chatDb = require('./db');
 
+//chatDb.CheckAndCreateDB( StartListen );
 chatDb.CheckAndCreateDB( StartListen );
-
 ////////////////////////////////////////////////////////////////////////////////
 
 var server = net.createServer( function(c) {

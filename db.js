@@ -4,41 +4,38 @@
 var sqlite3 = require('sqlite3').verbose();
 var fsys = require('fs');
 
-var db;
-
+var db ;
+var serverCallBack;
 ////////////////////////////////////////////////////////////////////////////////
 
-function createDb (cb) {
+function createDb () {
+    console.log("createDb chain db: "+db);
     console.log("createDb chain sqlite3: "+sqlite3);
-    db = new sqlite3.Database('./chatServer.sqlite3', createTables(cb));
-
+    db = new sqlite3.Database('./chatServer.sqlite3', createTables);
 }
 
-function createTables (cb) {
-    console.log("createTable called db: "+db+" cb: "+cb); //undefined ????
-    createTableFriendList (cb);
+function createTables () {
+    console.log("createTable called db: "+db ); //undefined ???? cb 존재시 에러!!
+    createTableFriendList ();
 }
 
-function createTableFriendList (cb) {
+function createTableFriendList () {
     //multiple db table creation
     console.log("createTable FriendList");
     
-    //exports.closeDb();
-    //cb();
-    db.run("CREATE TABLE IF NOT EXISTS FriendList (info TEXT)", createTableFriendGroup(cb) );
+    db.run("CREATE TABLE IF NOT EXISTS FriendList (info TEXT)", createTableFriendGroup );
     //TypeError: Cannot call method 'run' of undefined FIXME!!
 }
 
-function createTableFriendGroup  (cb) {
+function createTableFriendGroup  () {
     //multiple db table creation
     console.log("createTable FriendGroup");
     db.run("CREATE TABLE IF NOT EXISTS FriendGroup (info TEXT)");
 
     console.log("createDb Done!!");
 
-    //^^ server run..
-    cb();
-
+    //^^ server listen..
+    serverCallBack();
 }
 
 function readAllRows () {
@@ -53,24 +50,26 @@ function readAllRows () {
     });
 }
 
-exports.CheckAndCreateDB = function (cb) {
+function CheckAndCreateDB (cb) {
+    serverCallBack = cb;
     fsys.exists('./chatServer.sqlite3', function (exists) {
         //util.debug(exists ? "db exists!!" : "db not exists");
         if(!exists) {
             console.log("createDb call...");
-            createDb(cb);
+            createDb();
         }
         else 
         {
           console.log("1.db exists...");
           //db = new sqlite3.Database('./chatServer.sqlite3', getDataClient);
           //db = new sqlite3.Database('./chatServer.sqlite3', readAllRows); 
-          console.log('debug#1');
 
           cb ();
         }
     });
 }
+
+exports.CheckAndCreateDB = CheckAndCreateDB ;
 /*
 function getDataTest (err) {
     console.log("getDataTest...err: "+ err);
