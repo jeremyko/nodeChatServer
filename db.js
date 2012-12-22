@@ -3,113 +3,144 @@
  */
 var sqlite3 = require('sqlite3').verbose();
 var fsys = require('fs');
+var util = require('util');
 
 var db ;
-var serverCallBack;
+var serverStart;
 ////////////////////////////////////////////////////////////////////////////////
 
-function createDb () {
-    console.log("createDb chain db: "+db);
-    console.log("createDb chain sqlite3: "+sqlite3);
-    db = new sqlite3.Database('./chatServer.sqlite3', createTables);
+function createDb (bTableBuild) {
+    if(bTableBuild) {
+        db = new sqlite3.Database('./chatServer.sqlite3', createTables);
+    } else {
+        db = new sqlite3.Database('./chatServer.sqlite3', createTables);
+    }
 }
 
-function createTables () {
-    console.log("createTable called db: "+db ); //undefined ???? cb 존재시 에러!!
-    createTableFriendList ();
+function createTables () { 
+    createTableUserInfo ();
+}
+
+function createTableUserInfo () {
+    // 별명, 이름, 비번, 연락처
+    db.run("CREATE TABLE IF NOT EXISTS UserInfo \
+    (userid VARCHAR(30), nick VARCHAR(100), passwd VARCHAR(20), PRIMARY KEY(userid) )",
+    
+    createTableFriendList );
 }
 
 function createTableFriendList () {
-    //multiple db table creation
-    console.log("createTable FriendList");
-    
-    db.run("CREATE TABLE IF NOT EXISTS FriendList (info TEXT)", createTableFriendGroup );
-    //TypeError: Cannot call method 'run' of undefined FIXME!!
+    db.run("CREATE TABLE IF NOT EXISTS FriendList (userid VARCHAR(30), friendid VARCHAR(30), PRIMARY KEY(userid,friendid))",
+        tableCreted ); 
 }
 
-function createTableFriendGroup  () {
-    //multiple db table creation
-    console.log("createTable FriendGroup");
-    db.run("CREATE TABLE IF NOT EXISTS FriendGroup (info TEXT)");
-
-    console.log("createDb Done!!");
-
-    //^^ server listen..
-    serverCallBack();
+function tableCreted () {
+    util.debug("createDb Done!!");
+    serverStart();
 }
 
-function readAllRows () {
-    console.log('readAllRows invoked...');
+exports.authUser = function(userid,passwd, cb) {
+    util.debug('authUser invoked...');
     // test select
-    db.all("SELECT info FROM FriendList", function(err, rows) {
+    var sqlStr = "SELECT count(1) user_exists FROM UserInfo WHERE userid=? AND passwd=?";
+    util.debug("authUser/sqlStr:"+sqlStr);
+
+    db.get(sqlStr,userid,passwd, function(err, row) {
         console.log('err: ' + err);
-        rows.forEach(function (row) {
-            console.log(row.info);
-        });
-        closeDb();
+        console.log('row.user_exists: '+ row.user_exists);
+        cb (err, row.user_exists);
     });
 }
 
-function CheckAndCreateDB (cb) {
-    serverCallBack = cb;
+exports.checkUserId = function(aryData, cb) {
+    var userid = aryData[0];
+    util.debug('checkUserId invoked...');
+    var sqlStr = "SELECT count(1) userExists FROM UserInfo WHERE userid=?";
+    //util.debug("checkUserId/sqlStr:"+sqlStr);
+
+    db.get(sqlStr,userid, function(err, row) {
+        console.log('err: ' + err);
+        console.log('row.userExists: '+ row.userExists);
+        cb (err, row.userExists);
+    });
+}
+
+exports.registerUser = function(aryData, cb) {
+    //"userid|passwd|nick"
+    var userid = aryData[0];
+    var passwd = aryData[1];
+    var nick   = aryData[2];
+    
+    util.debug("userid: " + userid);
+    util.debug("nick  : " + nick);
+    util.debug("passwd: " + passwd);
+
+    db.run("INSERT INTO UserInfo VALUES (?,?,?)", userid, nick, passwd, cb);
+}
+
+exports.validateFriendId  = function (friendid, cb) {
+    util.debug('validateFriendId invoked...');
+    var sqlStr = "SELECT count(1) cnt FROM UserInfo WHERE userid==?";
+
+    db.get(sqlStr,friendid, function(err, row) {
+        console.log('err: ' + err);
+        console.log('row.cnt: '+ row.cnt);
+        cb (err, row.cnt);
+    });
+}
+
+exports.addMyFriend = function (userid, friendid, cb) {
+    db.run("INSERT INTO FriendList(userid,friendid) VALUES (?,?)", userid, friendid,  cb);
+}
+
+exports.getMyFriendCount = function(userid, cb) {
+    util.debug('getMyFriendCount invoked...');
+    var sqlStr = "SELECT count(friendid) totalCnt FROM FriendList WHERE userid==?";
+    util.debug("getMyFriendCount/sqlStr:"+sqlStr);
+
+    db.get(sqlStr,userid, function(err, row) {
+        console.log('err: ' + err);
+        console.log('row.totalCnt: '+ row.totalCnt);
+        cb (err, row.totalCnt);
+    });
+
+}
+
+exports.getMyFriendList = function (userid, cb, totalCnt) {
+    util.debug('getMyFriendList invoked...');
+    // test select
+    var sqlStr = "SELECT friendid FROM FriendList WHERE userid='"+userid+"'";
+    util.debug("getMyFriendList/sqlStr:"+sqlStr);
+
+    db.all(sqlStr, function(err, rows) {
+        console.log('err: ' + err);
+        rows.forEach(function (row) {
+            console.log(row);
+            cb (row, totalCnt);
+        });
+        //closeDb();
+    });
+}
+
+exports.checkAndCreateDB = function (cb) {
+    serverStart = cb;
     fsys.exists('./chatServer.sqlite3', function (exists) {
         //util.debug(exists ? "db exists!!" : "db not exists");
         if(!exists) {
-            console.log("createDb call...");
-            createDb();
+            util.debug("createDb call...");
+            createDb(true);
         }
         else 
         {
-          console.log("1.db exists...");
+          util.debug("1.db exists...");
+          createDb(false, serverStart);
           //db = new sqlite3.Database('./chatServer.sqlite3', getDataClient);
-          //db = new sqlite3.Database('./chatServer.sqlite3', readAllRows); 
+          //db = new sqlite3.Database('./chatServer.sqlite3', getMyFriendList); 
 
-          cb ();
         }
     });
 }
 
-exports.CheckAndCreateDB = CheckAndCreateDB ;
-/*
-function getDataTest (err) {
-    console.log("getDataTest...err: "+ err);
-    if(err) {
-      console.log('error!!');
-      return;
-    }
-    
-    //test insert
-    console.log("insertRows FriendList");
-    var stmt = db.prepare("INSERT INTO FriendList VALUES (?)");
-
-    for (var i = 0; i < 10; i++) {
-        stmt.run("FriendList " + i);
-    }
-
-    stmt.finalize(readAllRows);
-    
-}
-function insertRows() {
-    console.log("insertRows Ipsum i");
-    var stmt = db.prepare("INSERT INTO lorem VALUES (?)");
-
-    for (var i = 0; i < 10; i++) {
-        stmt.run("Ipsum " + i);
-    }
-
-    stmt.finalize(readAllRows);
-}
-
-function readAllRows() {
-    console.log("readAllRows lorem");
-    db.all("SELECT rowid AS id, info FROM lorem", function(err, rows) {
-        rows.forEach(function (row) {
-            console.log(row.id + ": " + row.info);
-        });
-        closeDb();
-    });
-}
-*/
 function closeDb  () {
     console.log("closeDb");
     db.close();
