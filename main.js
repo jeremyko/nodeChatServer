@@ -13,7 +13,7 @@ chatDb.checkAndCreateDB( serverStart );
 /**
  * 구현할 기능들:
  * 1. 최초 사용자 등록하기 (별명, 이름, 비번, 연락처 ) OK
- * 2. 대화상대 검색 및 추가하기  
+ * 2. 대화상대 추가하기  
  * 2. 로그인시 인증 및 사용자 정보(대화목록) 보내주기 OK
  * 3. 로그인 여부를 모두에게 알리기 OK
  * 4. 채팅 메시지 전달하기 
@@ -27,8 +27,10 @@ var packetHeaderLen = 4; // 32 bit integer --> 4
 ////////////////////////////////////////////////////////////////////////////////
 //var clientConnectionsByConn    = {}; //impossible, only string key...
 //var onlineUsers  = {};
-var clientConnectionsByUserID  = {};
+var clientConnectionsByUserID  = {}; //connection only
+//var clientInfoByUserID  = {}; //except conection
 var clientConnectionsByRemoteIpPort    = {};
+//var clientInfoByRemoteIpPort    = {};
 
 function ClientData (conn, userid, ipaddr)
 {
@@ -36,7 +38,6 @@ function ClientData (conn, userid, ipaddr)
     this.userId=userid;
     this.ipAddr=ipaddr;
     this.friendList = []; // userid 
-    //this.friendConnList = []; //connection TODO : 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,15 +47,18 @@ LOGIN
 FRIENDLIST
 CHKID
 ADDFRIEND
+DELETEFRIEND
+CHATMSG
 */
 
 function broadcastMsg ( me, notiMsg) {
     //대화상대들에게 알림
-    util.debug("broadcastMsg");
+    util.debug("broadcastMsg:"+me);
     var toNotifyList = clientConnectionsByUserID[me].friendList;
     
     for( var id in toNotifyList) { // for 고려!!
-        if(id in clientConnectionsByUserID) {
+        util.debug("toNotifyList: " + toNotifyList[id]);
+        if( clientConnectionsByUserID[ toNotifyList[id] ]) {
             util.debug("notify To: " + toNotifyList[id]);
             sendMsgToClient(clientConnectionsByUserID[ toNotifyList[id] ].connection, notiMsg);    
         }
@@ -69,11 +73,20 @@ function broadcastLogOut( remoteIpPort) {
         var toNotifyList = connOfMe.friendList;
     
         for( var id in toNotifyList) { // for 고려!!
-            if(id in clientConnectionsByUserID) {
+            if( clientConnectionsByUserID[ toNotifyList[id] ]) {
                 util.debug("notify To: " + toNotifyList[id]);
-                sendMsgToClient(clientConnectionsByUserID[ toNotifyList[id] ].connection, notiMsg);    
+                sendMsgToClient(clientConnectionsByUserID[ toNotifyList[id] ].connection, notiMsg, deleteClient);    
+            }else{
+                delete clientConnectionsByUserID[connOfMe.userId];
+                delete clientConnectionsByRemoteIpPort[remoteIpPort]; 
             }
         }   
+    }
+
+    function deleteClient() {
+        util.debug("deleteClient");
+        delete clientConnectionsByUserID[connOfMe.userId];
+        delete clientConnectionsByRemoteIpPort[remoteIpPort]; 
     }
 }
 
@@ -81,7 +94,7 @@ function broadcastLogOut( remoteIpPort) {
 ////////////////////////////////////////////////////////////////////////////////
 var serverFunctions   = {};
 
-function sendMsgToClient(connection, msg) {
+function sendMsgToClient(connection, msg, cb) {
     var buffMsg = new Buffer(msg);
     var msgLen = buffMsg.length ;
     //packet length info
@@ -92,12 +105,16 @@ function sendMsgToClient(connection, msg) {
     
     var bufTotal = new Buffer(  headerLen + msgLen ); //packet length info + msg
     bufTotal.fill();
-    console.log('bufTotal.length =%d', bufTotal.length);    
+    //console.log('bufTotal.length =%d', bufTotal.length);    
     bufPacketLenInfo.copy(bufTotal, 0, 0, headerLen);
     buffMsg.copy(bufTotal, headerLen, 0, msgLen );
     
-    console.log('bufTotal ['+bufTotal.length+']['+ bufTotal + ']');
-    connection.write(bufTotal);
+    console.log('SEND:['+bufTotal.length+']['+ bufTotal + ']');
+    if(cb) {
+        connection.write(bufTotal, cb );
+    }else{
+        connection.write(bufTotal, function () { util.debug("written out!"); });
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +129,47 @@ function getErrString(usage, err) {
 
     return returnStr;
 }
+////////////////////////////////////////////////////////////////////////////////
 
+serverFunctions ['CHATMSG'] = function (connection, remoteIpPort, packetData) {
+    var packetDataCopy = packetData;
+    console.log('function CHATMSG:'+ packetData);  //userid|friendid|msg
+    var aryData = packetData.split(TCP_DELIMITER);   
+    var userid   = aryData[0];
+    var friendid = aryData[1];
+    var chatMsg = aryData[2];
+    var friendOnline = clientConnectionsByUserID[friendid];
+    if(friendOnline != undefined) {
+        sendMsgToClient( clientConnectionsByUserID[friendid].connection, 'CHATMSG'+TCP_DELIMITER+packetDataCopy);    
+    } else {
+        util.debug('ERR: friendid is NOT ONLINE!'+ friendid);
+    }
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+serverFunctions ['DELETEFRIEND'] = function (connection, remoteIpPort, packetData) {
+    console.log('function DELETEFRIEND:'+ packetData);  //kojh|ddd
+    //DELETEFRIEND|userid|friendid
+    var aryData = packetData.split(TCP_DELIMITER);   
+    var userid   = aryData[0];
+    var friendid = aryData[1];
+    
+    //friendid validation
+    chatDb.removeFriendId(userid, friendid, whenFriendRemoveResultComes);
+
+    function whenFriendRemoveResultComes(err) {
+        util.debug("whenAddFriendResultComes");
+        //DELETEFRIEND|OK|friendid
+        //DELETEFRIEND|FAIL|err string
+        var returnStr = getErrString( 'DELETEFRIEND', err);
+        if(!err) {
+            returnStr += TCP_DELIMITER + friendid;
+        }
+
+        sendMsgToClient(connection, returnStr);
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['CHKID'] = function (connection, remoteIpPort, packetData) {
     util.debug('function CHKID:'+ packetData);
@@ -157,11 +214,13 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
     var aryData = packetData.split(TCP_DELIMITER);   
     var userid   = aryData[0];
     var friendid = aryData[1];
+    var friendNick="";
     //friendid validation
     chatDb.validateFriendId(friendid, whenIdValidationResultComes);
 
-    function whenIdValidationResultComes(err, idExists) {
-        util.debug("whenIdValidationResultComes:"+ idExists);
+    function whenIdValidationResultComes(err, idExists, nick) {
+        friendNick = nick;
+        util.debug("whenIdValidationResultComes:"+ idExists+" /nick:"+friendNick);
         if( idExists == 0) {
             sendMsgToClient(connection, "ADDFRIEND|FAIL|No Such Friend ID");
             return;
@@ -172,13 +231,21 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
 
     function whenAddFriendResultComes(err) {
         util.debug("whenAddFriendResultComes");
-        //ADDFRIEND|OK|friendid
+        //ADDFRIEND|OK|friendid|online
         //ADDFRIEND|FAIL|err string
 
-        //TODO : on off구분!!
         var returnStr = getErrString( 'ADDFRIEND', err);
         if(!err) {
-            returnStr = returnStr + TCP_DELIMITER + friendid;
+            returnStr += TCP_DELIMITER + friendid;
+            returnStr += TCP_DELIMITER + friendNick;
+            returnStr += TCP_DELIMITER;
+            
+            if( friendid in clientConnectionsByUserID ) {
+                //online now
+                returnStr += "online";
+            }else{
+                returnStr += "offline";
+            }
         }
 
         sendMsgToClient(connection, returnStr);
@@ -189,6 +256,7 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
 serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData) {
     console.log('function FRIENDLIST:'+ packetData);    
     var friendList = [];
+    var nickList = [];
     //"userid"
     var curCnt = 0;
     var aryData = packetData.split(TCP_DELIMITER);   
@@ -212,8 +280,10 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
         util.debug("whenMyListComes:"+ totalCnt);
 
         curCnt++;
-        util.debug("whenMyListComes:curCnt=>"+curCnt+"totalCnt=>"+ totalCnt+ " /friendid:" +row.friendid);
+        util.debug("whenMyListComes:curCnt=>"+curCnt+"totalCnt=>"+ totalCnt+ 
+            " /friendid:" +row.friendid+"/nick:" +row.nick);
         friendList.push (row.friendid); 
+        nickList.push (row.nick); 
 
         clientConnectionsByUserID[userid].friendList.push (row.friendid); 
         clientConnectionsByRemoteIpPort[remoteIpPort].friendList.push (row.friendid); 
@@ -229,6 +299,8 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
                 //friendId1|online|friendId2|offline|....
                 friendListStr += friendList[i];
                 friendListStr += TCP_DELIMITER;
+                friendListStr += nickList[i];
+                friendListStr += TCP_DELIMITER;
                 if( friendList[i] in clientConnectionsByUserID ) {
                     //online now
                     friendListStr += "online";
@@ -238,7 +310,7 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
                 friendListStr += TCP_DELIMITER;
             }
 
-            util.debug("friendListStr: " + friendListStr); // 222|333|444|
+            util.debug("friendListStr: " + friendListStr); // FRIENDLIST|id|nick|online|...
             
             sendMsgToClient(connection, friendListStr);
 
@@ -275,13 +347,12 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
             if(!err) {
                 util.debug("로그인 성공시, 사용자정보를 저장.["+userid+"] ip["+ remoteIpPort+"]");
                 
-                clientConnectionsByUserID[userid] = new ClientData(connection, userid ,remoteIpPort);  
-                clientConnectionsByRemoteIpPort[remoteIpPort] = new ClientData(connection, userid ,remoteIpPort);  
-                //onlineUsers[userid] = userid;
-                var debugOnly0= clientConnectionsByUserID[userid];
-                util.debug(debugOnly0.connection+"/"+debugOnly0.userId+"/"+debugOnly0.ipAddr);
-                var debugOnly1 = clientConnectionsByRemoteIpPort[remoteIpPort];
-                util.debug(debugOnly1.connection+"/"+debugOnly1.userId+"/"+debugOnly1.ipAddr);
+                //clientConnectionsByUserID[userid] = connection;
+                clientConnectionsByUserID[userid] = new ClientData( connection,userid ,remoteIpPort);  
+
+                //clientConnectionsByRemoteIpPort[remoteIpPort] = connection;
+                clientConnectionsByRemoteIpPort[remoteIpPort] = new ClientData( connection,userid ,remoteIpPort);  
+                
             } else {
                 util.debug("로그인 ERROR");
             }
@@ -400,7 +471,12 @@ var server = net.createServer( function(c) {
     c.on('end', function() {
         console.log('connection disconnected: '+ remoteIpPort);
         broadcastLogOut(remoteIpPort);
+        
     });
+
+    //c.on('drain', function() {
+    //    console.log('connection drain: '+ remoteIpPort);
+    //});
 });
 
 ////////////////////////////////////////////////////////////////////////////////

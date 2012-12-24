@@ -80,13 +80,18 @@ exports.registerUser = function(aryData, cb) {
 
 exports.validateFriendId  = function (friendid, cb) {
     util.debug('validateFriendId invoked...');
-    var sqlStr = "SELECT count(1) cnt FROM UserInfo WHERE userid==?";
+    var sqlStr = "SELECT count(1) cnt, nick  FROM UserInfo WHERE userid==?";
 
     db.get(sqlStr,friendid, function(err, row) {
-        console.log('err: ' + err);
-        console.log('row.cnt: '+ row.cnt);
-        cb (err, row.cnt);
+        util.debug('err: ' + err);
+        util.debug('row.cnt: '+ row.cnt);
+        util.debug('row.nick: '+ row.nick);
+        cb (err, row.cnt, row.nick);
     });
+}
+
+exports.removeFriendId = function(userid, friendid, cb) {
+    db.run("DELETE FROM FriendList WHERE userid=? AND friendid=?", userid, friendid,  cb);
 }
 
 exports.addMyFriend = function (userid, friendid, cb) {
@@ -109,7 +114,8 @@ exports.getMyFriendCount = function(userid, cb) {
 exports.getMyFriendList = function (userid, cb, totalCnt) {
     util.debug('getMyFriendList invoked...');
     // test select
-    var sqlStr = "SELECT friendid FROM FriendList WHERE userid='"+userid+"'";
+    //SELECT a.friendid, b.nick FROM FriendList A,userinfo B WHERE A.userid='kojh' and B.userid = a.userid
+    var sqlStr = "SELECT a.friendid, b.nick FROM FriendList A,userinfo B WHERE A.userid='"+userid+"' and B.userid = A.friendid";
     util.debug("getMyFriendList/sqlStr:"+sqlStr);
 
     db.all(sqlStr, function(err, rows) {
