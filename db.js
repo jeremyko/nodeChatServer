@@ -42,13 +42,13 @@ function tableCreted () {
 exports.authUser = function(userid,passwd, cb) {
     util.debug('authUser invoked...');
     // test select
-    var sqlStr = "SELECT count(1) user_exists FROM UserInfo WHERE userid=? AND passwd=?";
+    var sqlStr = "SELECT count(1) user_exists, nick FROM UserInfo WHERE userid=? AND passwd=?";
     util.debug("authUser/sqlStr:"+sqlStr);
 
     db.get(sqlStr,userid,passwd, function(err, row) {
         console.log('err: ' + err);
         console.log('row.user_exists: '+ row.user_exists);
-        cb (err, row.user_exists);
+        cb (err, row.user_exists, row.nick);
     });
 }
 

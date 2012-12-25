@@ -11,13 +11,12 @@ chatDb.checkAndCreateDB( serverStart );
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * 구현할 기능들:
- * 1. 최초 사용자 등록하기 (별명, 이름, 비번, 연락처 ) OK
- * 2. 대화상대 추가하기  
- * 2. 로그인시 인증 및 사용자 정보(대화목록) 보내주기 OK
- * 3. 로그인 여부를 모두에게 알리기 OK
+ * 구현 기능:
+ * 1. 최초 사용자 등록하기 (별명, 이름, 비번 ) 
+ * 2. 대화상대 추가/삭제 하기  
+ * 2. 로그인시 인증 및 사용자 정보(대화목록) 보내주기 
+ * 3. 로그인/아웃 여부를 모두에게 알리기 
  * 4. 채팅 메시지 전달하기 
- * 5. 로그 아웃시 모두에게 알리기. OK
  */
 var SERVER_PORT = 8124;
 var TCP_DELIMITER = '|';
@@ -25,31 +24,19 @@ var packetHeaderLen = 4; // 32 bit integer --> 4
 //var packetInfoFieldLen = 5+1; //65536| --> string packet
 
 ////////////////////////////////////////////////////////////////////////////////
-//var clientConnectionsByConn    = {}; //impossible, only string key...
-//var onlineUsers  = {};
 var clientConnectionsByUserID  = {}; //connection only
-//var clientInfoByUserID  = {}; //except conection
 var clientConnectionsByRemoteIpPort    = {};
-//var clientInfoByRemoteIpPort    = {};
 
-function ClientData (conn, userid, ipaddr)
+function ClientData (conn, userid, nick,ipaddr)
 {
     this.connection = conn;
     this.userId=userid;
+    this.nick=nick;
     this.ipAddr=ipaddr;
-    this.friendList = []; // userid 
+    this.friendList = []; // id 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/*
-REGISTER
-LOGIN
-FRIENDLIST
-CHKID
-ADDFRIEND
-DELETEFRIEND
-CHATMSG
-*/
 
 function broadcastMsg ( me, notiMsg) {
     //대화상대들에게 알림
@@ -69,7 +56,8 @@ function broadcastLogOut( remoteIpPort) {
     util.debug("broadcastLogOut:"+remoteIpPort);
     var connOfMe = clientConnectionsByRemoteIpPort[remoteIpPort];    
     if(connOfMe) {
-        var notiMsg = "LOGGED-OUT|" + connOfMe.userId ;
+        var notiMsg = "LOGGED-OUT|" + connOfMe.userId +TCP_DELIMITER+connOfMe.nick;
+
         var toNotifyList = connOfMe.friendList;
     
         for( var id in toNotifyList) { // for 고려!!
@@ -90,7 +78,6 @@ function broadcastLogOut( remoteIpPort) {
     }
 }
 
-//functions
 ////////////////////////////////////////////////////////////////////////////////
 var serverFunctions   = {};
 
@@ -170,6 +157,7 @@ serverFunctions ['DELETEFRIEND'] = function (connection, remoteIpPort, packetDat
         sendMsgToClient(connection, returnStr);
     }
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['CHKID'] = function (connection, remoteIpPort, packetData) {
     util.debug('function CHKID:'+ packetData);
@@ -207,7 +195,6 @@ serverFunctions ['REGISTER'] = function (connection, remoteIpPort, packetData) {
     }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) {
     console.log('function ADDFRIEND:'+ packetData);  //kojh|ddd
@@ -226,7 +213,11 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
             return;
         }
         //friendid exists,
-        chatDb.addMyFriend(userid, friendid, whenAddFriendResultComes);
+        chatDb.addMyFriend(userid, friendid, whenAddFriendOfMineResultComes);
+    }
+
+    function whenAddFriendOfMineResultComes() {
+        chatDb.addMyFriend(friendid, userid, whenAddFriendResultComes);
     }
 
     function whenAddFriendResultComes(err) {
@@ -295,7 +286,6 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
             //got all rows=> send back to client
             var friendListStr="FRIENDLIST|";
             for(var i in friendList) {
-                //util.debug("friendList.element: " + friendList[i]);
                 //friendId1|online|friendId2|offline|....
                 friendListStr += friendList[i];
                 friendListStr += TCP_DELIMITER;
@@ -314,7 +304,7 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
             
             sendMsgToClient(connection, friendListStr);
 
-            var notiMsg = "LOGGED-IN|" + userid ;
+            var notiMsg = "LOGGED-IN|" + userid +TCP_DELIMITER+clientConnectionsByUserID[userid].nick;
             broadcastMsg (userid, notiMsg);
         }
     }
@@ -335,7 +325,7 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
     //인증
     chatDb.authUser(userid,passwd, whenAuthCompletes);
     
-    function whenAuthCompletes(err, result) {
+    function whenAuthCompletes(err, result, nick) {
         util.debug("whenAuthCompletes");
         var returnStr = "";
         if(0===result) {
@@ -345,13 +335,13 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
             returnStr = getErrString( 'LOGIN', err);
 
             if(!err) {
-                util.debug("로그인 성공시, 사용자정보를 저장.["+userid+"] ip["+ remoteIpPort+"]");
+                util.debug("로그인 성공시, 사용자정보를 저장.["+userid+"] nick["+nick+"] ip["+ remoteIpPort+"]");
                 
                 //clientConnectionsByUserID[userid] = connection;
-                clientConnectionsByUserID[userid] = new ClientData( connection,userid ,remoteIpPort);  
+                clientConnectionsByUserID[userid] = new ClientData( connection,userid ,nick, remoteIpPort);  
 
                 //clientConnectionsByRemoteIpPort[remoteIpPort] = connection;
-                clientConnectionsByRemoteIpPort[remoteIpPort] = new ClientData( connection,userid ,remoteIpPort);  
+                clientConnectionsByRemoteIpPort[remoteIpPort] = new ClientData( connection,userid ,nick, remoteIpPort);  
                 
             } else {
                 util.debug("로그인 ERROR");
@@ -380,17 +370,12 @@ var server = net.createServer( function(c) {
     console.log('remoteIpPort='+ remoteIpPort); 
 
     
-    //--------------------------------------------------------------------------
     c.on('data', function(data) {
         // 주고받는 packet => 패킷크기정보 헤더 (unsigned int 32bit) + 구분자로 나누어진 문자열 데이터
-        // 헤더 정보에는 순수한 문자열 데이터 길이가 설정된다. 
-        // 그러므로 전체 패킷의 길이는 4byte + 헤더에 설정된 크기임.  
+        // 헤더 정보에는 순수한 문자열 데이터 길이가 설정됨. 
+        // 그러므로 전체 패킷의 길이는 4byte + 헤더에 설정된 크기.  
         console.log('data 길이 :' + data.length ); //18
         console.log('data='+ data); // LOGIN|1|2
-        //debug 
-        //for( var i =0 ; i < data.length; i ++) {
-        //    console.log('data['+i+']='+ data[i]);
-        //}
         
         recvedThisTimeLen = data.length;
         console.log('recvedThisTimeLen='+ recvedThisTimeLen);
@@ -398,6 +383,7 @@ var server = net.createServer( function(c) {
         accumulatingBuffer.copy(tmpBuffer);
         data.copy ( tmpBuffer, accumulatingLen  ); // offset for accumulating
         accumulatingBuffer = tmpBuffer;	
+        tmpBuffer = null;
         accumulatingLen += recvedThisTimeLen ;
         console.log('accumulatingBuffer = ' + accumulatingBuffer  ); 
         console.log('accumulatingLen    =' + accumulatingLen );
@@ -407,7 +393,6 @@ var server = net.createServer( function(c) {
             return;
         } else if( recvedThisTimeLen == packetHeaderLen ) {
             console.log('need to get more data(only header-info is available) -> wait..');
-            //console.log('only header info received, wait :'+ accumulatingBuffer.readUInt32BE(0));
             return;
         } else {
         	console.log('before-totalPacketLen=' + totalPacketLen ); 
@@ -419,21 +404,23 @@ var server = net.createServer( function(c) {
         }    
 
         while( accumulatingLen >= totalPacketLen + packetHeaderLen ) {
-            // 현재 누적된 데이터 양이 받아야 할 길이와 같거나 많음 .
-            //accumulatingBuffer 에서 packetHeaderLen offset 만큼 이후부터  totalPacketLen 만큼처리 
             console.log('누적된 데이터(' + accumulatingLen +') >= 헤더+데이터 길이(' + (totalPacketLen+packetHeaderLen) +')' );
             console.log( 'accumulatingBuffer= ' + accumulatingBuffer );
             
             var aPacketBufExceptHeader = new Buffer( totalPacketLen  ); // a whole packet is available...
-            //buf.copy(targetBuffer, [targetStart], [sourceStart], [sourceEnd])
             console.log( 'aPacketBufExceptHeader len= ' + aPacketBufExceptHeader.length );
         	accumulatingBuffer.copy( aPacketBufExceptHeader, 0, packetHeaderLen, accumulatingBuffer.length); // 
             
             ////////////////////////////////////////////////////////////////////
-        	handlePackets( aPacketBufExceptHeader); //process packet data
+        	//process packet data
+            var stringData = aPacketBufExceptHeader.toString();
+            var usage = stringData.substring(0,stringData.indexOf(TCP_DELIMITER));
+            console.log("usage: " + usage);
+            //call handler
+            (serverFunctions [usage])(c, remoteIpPort, stringData.substring(1+stringData.indexOf(TCP_DELIMITER)));
             ////////////////////////////////////////////////////////////////////
         	
-        	//패킷 길이만큼 제외한 나머지 버퍼를 재구성한 후,  set 
+        	//나머지 버퍼 재구성
         	var newBufRebuild = new Buffer( accumulatingBuffer.length );
         	newBufRebuild.fill();
         	accumulatingBuffer.copy( newBufRebuild, 0, totalPacketLen + packetHeaderLen, accumulatingBuffer.length  );
@@ -441,6 +428,7 @@ var server = net.createServer( function(c) {
      		//init      
         	accumulatingLen -= (totalPacketLen +4) ;
         	accumulatingBuffer = newBufRebuild;
+            newBufRebuild = null;
         	totalPacketLen = -1;
             console.log( 'Init: accumulatingBuffer= ' + accumulatingBuffer );	
             console.log( '      accumulatingLen   = ' + accumulatingLen );	
@@ -454,16 +442,7 @@ var server = net.createServer( function(c) {
                 console.log('totalPacketLen=' + totalPacketLen );
             }    
         } 
-        console.log('....after while.....' );
-
-        function handlePackets(packetData) {
-            console.log('handlePackets:packetData:'+ packetData);
-            var stringData = packetData.toString();
-            var usage = stringData.substring(0,stringData.indexOf(TCP_DELIMITER));
-            console.log("usage: " + usage);
-            //call handler
-            (serverFunctions [usage])(c, remoteIpPort, stringData.substring(1+stringData.indexOf(TCP_DELIMITER)));
-        }                  
+        console.log('....after while.....' );           
         
     }); //on.data
 
