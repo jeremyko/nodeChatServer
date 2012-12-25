@@ -369,7 +369,6 @@ var server = net.createServer( function(c) {
     //console.log('port='+ address.port); 
     console.log('remoteIpPort='+ remoteIpPort); 
 
-    
     c.on('data', function(data) {
         // 주고받는 packet => 패킷크기정보 헤더 (unsigned int 32bit) + 구분자로 나누어진 문자열 데이터
         // 헤더 정보에는 순수한 문자열 데이터 길이가 설정됨. 
@@ -382,7 +381,7 @@ var server = net.createServer( function(c) {
         var tmpBuffer = new Buffer( accumulatingLen + recvedThisTimeLen );
         accumulatingBuffer.copy(tmpBuffer);
         data.copy ( tmpBuffer, accumulatingLen  ); // offset for accumulating
-        accumulatingBuffer = tmpBuffer;	
+        accumulatingBuffer = tmpBuffer; 
         tmpBuffer = null;
         accumulatingLen += recvedThisTimeLen ;
         console.log('accumulatingBuffer = ' + accumulatingBuffer  ); 
@@ -395,12 +394,12 @@ var server = net.createServer( function(c) {
             console.log('need to get more data(only header-info is available) -> wait..');
             return;
         } else {
-        	console.log('before-totalPacketLen=' + totalPacketLen ); 
-        	//a packet info is available..
-        	if( totalPacketLen < 0 ) {
-        		totalPacketLen = accumulatingBuffer.readUInt32BE(0) ; 
-        		console.log('totalPacketLen=' + totalPacketLen );
-        	}
+            console.log('before-totalPacketLen=' + totalPacketLen ); 
+            //a packet info is available..
+            if( totalPacketLen < 0 ) {
+                totalPacketLen = accumulatingBuffer.readUInt32BE(0) ; 
+                console.log('totalPacketLen=' + totalPacketLen );
+            }
         }    
 
         while( accumulatingLen >= totalPacketLen + packetHeaderLen ) {
@@ -409,29 +408,29 @@ var server = net.createServer( function(c) {
             
             var aPacketBufExceptHeader = new Buffer( totalPacketLen  ); // a whole packet is available...
             console.log( 'aPacketBufExceptHeader len= ' + aPacketBufExceptHeader.length );
-        	accumulatingBuffer.copy( aPacketBufExceptHeader, 0, packetHeaderLen, accumulatingBuffer.length); // 
+            accumulatingBuffer.copy( aPacketBufExceptHeader, 0, packetHeaderLen, accumulatingBuffer.length); // 
             
             ////////////////////////////////////////////////////////////////////
-        	//process packet data
+            //process packet data
             var stringData = aPacketBufExceptHeader.toString();
             var usage = stringData.substring(0,stringData.indexOf(TCP_DELIMITER));
             console.log("usage: " + usage);
             //call handler
             (serverFunctions [usage])(c, remoteIpPort, stringData.substring(1+stringData.indexOf(TCP_DELIMITER)));
             ////////////////////////////////////////////////////////////////////
-        	
-        	//나머지 버퍼 재구성
-        	var newBufRebuild = new Buffer( accumulatingBuffer.length );
-        	newBufRebuild.fill();
-        	accumulatingBuffer.copy( newBufRebuild, 0, totalPacketLen + packetHeaderLen, accumulatingBuffer.length  );
-        	
-     		//init      
-        	accumulatingLen -= (totalPacketLen +4) ;
-        	accumulatingBuffer = newBufRebuild;
+            
+            //나머지 버퍼 재구성
+            var newBufRebuild = new Buffer( accumulatingBuffer.length );
+            newBufRebuild.fill();
+            accumulatingBuffer.copy( newBufRebuild, 0, totalPacketLen + packetHeaderLen, accumulatingBuffer.length  );
+            
+            //init      
+            accumulatingLen -= (totalPacketLen +4) ;
+            accumulatingBuffer = newBufRebuild;
             newBufRebuild = null;
-        	totalPacketLen = -1;
-            console.log( 'Init: accumulatingBuffer= ' + accumulatingBuffer );	
-            console.log( '      accumulatingLen   = ' + accumulatingLen );	
+            totalPacketLen = -1;
+            console.log( 'Init: accumulatingBuffer= ' + accumulatingBuffer );   
+            console.log( '      accumulatingLen   = ' + accumulatingLen );  
 
             //여러 패킷이 한번에 전송되는 경우를 대비
             if( accumulatingLen <= packetHeaderLen ) {
@@ -445,7 +444,7 @@ var server = net.createServer( function(c) {
         console.log('....after while.....' );           
         
     }); //on.data
-
+    
     //--------------------------------------------------------------------------
     c.on('end', function() {
         console.log('connection disconnected: '+ remoteIpPort);
