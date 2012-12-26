@@ -15,7 +15,9 @@ How to run server :
 The database file will be created automatically if not exists.
 
 Packet data format consist of the header and body.
+
 header: 32bit unsigned int. this means body length.
+
 body  : Message string
 
 
