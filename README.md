@@ -8,7 +8,7 @@ client: https://github.com/jeremyko/nodeChatClient
 
 How to run server :
 
-  npm install sqlite3
+  npm install ( or, npm install sqlite3 )
 
   node main.js
 
