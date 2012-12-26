@@ -4,6 +4,5 @@
   , "private": true
   , "dependencies": {
         "sqlite3": "2.1.5"
-      , "express": "3.0.2"
   }
 }
