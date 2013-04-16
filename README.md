@@ -17,6 +17,7 @@ client: https://github.com/jeremyko/nodeChatClient
 - Packet data format consist of the header and body.
 
   header: 32bit unsigned int. this means body length.
+  
   body  : Message string
 
 
