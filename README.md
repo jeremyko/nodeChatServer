@@ -22,3 +22,6 @@ client: https://github.com/jeremyko/nodeChatClient
 
 
  
+LICENSE
+
+This projected is licensed under the terms of the BSD license.
