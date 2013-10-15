@@ -1,3 +1,4 @@
 .idea
 *.swp
 .project
+node_modules
