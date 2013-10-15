@@ -1,8 +1,0 @@
-{
-    "name": "nodeChatServer"
-  , "version": "0.0.1"
-  , "private": true
-  , "dependencies": {
-        "sqlite3": "2.1.5"
-  }
-}
