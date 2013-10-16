@@ -1,5 +1,8 @@
 /**
  * 20131015
+ * TODO
+ * 1. for the first time use, adding friend doesn't get notified to other.
+ * 2. for the first time user, logout doesn't get notified to other.
  */
 var net = require('net');
 //var fsys = require('fs');
@@ -32,7 +35,7 @@ function ClientData (conn, userid, nick,ipaddr)
     this.connection = conn;
     this.userId=userid;
     this.nick=nick;
-    this.ipAddr=ipaddr;
+    //this.ipAddr=ipaddr;
     this.friendList = []; // id 
 }
 
@@ -119,20 +122,19 @@ function getErrString(usage, err) {
 ////////////////////////////////////////////////////////////////////////////////
 
 serverFunctions ['CHATMSG'] = function (connection, remoteIpPort, packetData) {
-    var packetDataCopy = packetData;
+    //var packetDataCopy = packetData;
     console.log('function CHATMSG:'+ packetData);  //userid|friendid|msg
     var aryData = packetData.split(TCP_DELIMITER);   
-    var userid   = aryData[0];
+    //var userid   = aryData[0];
     var friendid = aryData[1];
-    var chatMsg = aryData[2];
+    //var chatMsg = aryData[2];
     var friendOnline = clientConnectionsByUserID[friendid];
     if(friendOnline != undefined) {
-        sendMsgToClient( clientConnectionsByUserID[friendid].connection, 'CHATMSG'+TCP_DELIMITER+packetDataCopy);    
+        sendMsgToClient( clientConnectionsByUserID[friendid].connection, 'CHATMSG'+TCP_DELIMITER+packetData);
     } else {
         util.debug('ERR: friendid is NOT ONLINE!'+ friendid);
     }
-
-}
+} ;
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['DELETEFRIEND'] = function (connection, remoteIpPort, packetData) {
@@ -156,7 +158,7 @@ serverFunctions ['DELETEFRIEND'] = function (connection, remoteIpPort, packetDat
 
         sendMsgToClient(connection, returnStr);
     }
-}
+}  ;
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['CHKID'] = function (connection, remoteIpPort, packetData) {
@@ -177,7 +179,7 @@ serverFunctions ['CHKID'] = function (connection, remoteIpPort, packetData) {
         //send back TODO 
         sendMsgToClient(connection, returnStr);
     }
-}
+}  ;
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['REGISTER'] = function (connection, remoteIpPort, packetData) {
@@ -193,7 +195,7 @@ serverFunctions ['REGISTER'] = function (connection, remoteIpPort, packetData) {
 
         sendMsgToClient(connection, returnStr);
     }
-}
+}  ;
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) {
@@ -241,7 +243,7 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
 
         sendMsgToClient(connection, returnStr);
     }
-}
+}  ;
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData) {
@@ -308,13 +310,13 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
             broadcastMsg (userid, notiMsg);
         }
     }
-}
+} ;
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
     console.log('function LOGIN:'+ packetData);    
-    var curCnt = 0;
-    var friendList = [];
+    //var curCnt = 0;
+    //var friendList = [];
     //"userid|passwd"
     var aryData = packetData.split(TCP_DELIMITER);   
     var userid = aryData[0];
@@ -349,7 +351,7 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
         }
         sendMsgToClient(connection, returnStr);
     }
-}
+} ;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -361,7 +363,7 @@ var server = net.createServer( function(c) {
     var accumulatingLen  =  0;
     var recvedThisTimeLen=  0;
     var remoteAddress = c.remoteAddress;
-    var address= c.address();
+    //var address= c.address();
     var remotePort= c.remotePort;
     var remoteIpPort = remoteAddress +":"+ remotePort;
     
