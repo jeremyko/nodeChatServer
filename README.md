@@ -1,6 +1,6 @@
 nodeChatServer
 ==============
-http://jeremyko.blogspot.kr/2012/12/nodejs-tcp-chatting-server-with-qt.html#more
+http://jeremyko.blogspot.kr/2012/12/nodejs-tcp-chatting-server-with-qt.html
 
 chat TCP server written in node.js (considering data fragmentation)
 client: https://github.com/jeremyko/nodeChatClient
