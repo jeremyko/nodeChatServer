@@ -23,7 +23,7 @@ chatDb.checkAndCreateDB( serverStart );
  */
 var SERVER_PORT = 8124;
 var TCP_DELIMITER = '|';
-var packetHeaderLen = 4; // 32 bit integer --> 4
+var PACKET_HEADER_LEN = 4; // 32 bit integer --> 4
 //var packetInfoFieldLen = 5+1; //65536| --> string packet
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,6 +375,7 @@ var server = net.createServer( function(c) {
         // 주고받는 packet => 패킷크기정보 헤더 (unsigned int 32bit) + 구분자로 나누어진 문자열 데이터
         // 헤더 정보에는 순수한 문자열 데이터 길이가 설정됨. 
         // 그러므로 전체 패킷의 길이는 4byte + 헤더에 설정된 크기.  
+        //TODO : no dynamic buffer allocation 
         console.log('data 길이 :' + data.length ); //18
         console.log('data='+ data); // LOGIN|1|2
         
@@ -389,10 +390,12 @@ var server = net.createServer( function(c) {
         console.log('accumulatingBuffer = ' + accumulatingBuffer  ); 
         console.log('accumulatingLen    =' + accumulatingLen );
 
-        if( recvedThisTimeLen < packetHeaderLen ) {
+        //if( recvedThisTimeLen < PACKET_HEADER_LEN ) {
+        if (accumulatingLen < PACKET_HEADER_LEN) { //20150628 fixed: issued by mattipr
             console.log('need to get more data(less than header-length received) -> wait..');
             return;
-        } else if( recvedThisTimeLen == packetHeaderLen ) {
+        //} else if( recvedThisTimeLen == PACKET_HEADER_LEN ) {
+        } else if( accumulatingLen == PACKET_HEADER_LEN ) { //20150628 fixed: issued by mattipr
             console.log('need to get more data(only header-info is available) -> wait..');
             return;
         } else {
@@ -404,13 +407,13 @@ var server = net.createServer( function(c) {
             }
         }    
 
-        while( accumulatingLen >= totalPacketLen + packetHeaderLen ) {
-            console.log('누적된 데이터(' + accumulatingLen +') >= 헤더+데이터 길이(' + (totalPacketLen+packetHeaderLen) +')' );
+        while( accumulatingLen >= totalPacketLen + PACKET_HEADER_LEN ) {
+            console.log('누적된 데이터(' + accumulatingLen +') >= 헤더+데이터 길이(' + (totalPacketLen+PACKET_HEADER_LEN) +')' );
             console.log( 'accumulatingBuffer= ' + accumulatingBuffer );
             
             var aPacketBufExceptHeader = new Buffer( totalPacketLen  ); // a whole packet is available...
             console.log( 'aPacketBufExceptHeader len= ' + aPacketBufExceptHeader.length );
-            accumulatingBuffer.copy( aPacketBufExceptHeader, 0, packetHeaderLen, accumulatingBuffer.length); // 
+            accumulatingBuffer.copy( aPacketBufExceptHeader, 0, PACKET_HEADER_LEN, accumulatingBuffer.length); // 
             
             ////////////////////////////////////////////////////////////////////
             //process packet data
@@ -422,12 +425,13 @@ var server = net.createServer( function(c) {
             ////////////////////////////////////////////////////////////////////
             
             //나머지 버퍼 재구성
-            var newBufRebuild = new Buffer( accumulatingBuffer.length );
+            //var newBufRebuild = new Buffer( accumulatingBuffer.length );
+            var newBufRebuild = new Buffer( accumulatingBuffer.length - (totalPacketLen + PACKET_HEADER_LEN) ); //20150628 fixed: issued by mattipr
             newBufRebuild.fill();
-            accumulatingBuffer.copy( newBufRebuild, 0, totalPacketLen + packetHeaderLen, accumulatingBuffer.length  );
+            accumulatingBuffer.copy( newBufRebuild, 0, totalPacketLen + PACKET_HEADER_LEN, accumulatingBuffer.length  );
             
             //init      
-            accumulatingLen -= (totalPacketLen +4) ;
+            accumulatingLen -= (totalPacketLen +PACKET_HEADER_LEN) ;
             accumulatingBuffer = newBufRebuild;
             newBufRebuild = null;
             totalPacketLen = -1;
@@ -435,7 +439,7 @@ var server = net.createServer( function(c) {
             console.log( '      accumulatingLen   = ' + accumulatingLen );  
 
             //여러 패킷이 한번에 전송되는 경우를 대비
-            if( accumulatingLen <= packetHeaderLen ) {
+            if( accumulatingLen <= PACKET_HEADER_LEN ) {
                 //need to get more data -> wait..
                 return;
             } else {
