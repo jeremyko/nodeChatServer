@@ -9,12 +9,8 @@ var db ;
 var serverStart;
 ////////////////////////////////////////////////////////////////////////////////
 
-function createDb (bTableBuild) {
-    if(bTableBuild) {
-        db = new sqlite3.Database('./chatServer.sqlite3', createTables);
-    } else {
-        db = new sqlite3.Database('./chatServer.sqlite3', createTables);
-    }
+function createDb () {
+    db = new sqlite3.Database('./chatServer.sqlite3', createTables);
 }
 
 function createTables () { 
@@ -134,15 +130,12 @@ exports.checkAndCreateDB = function (cb) {
         //util.debug(exists ? "db exists!!" : "db not exists");
         if(!exists) {
             util.debug("createDb call...");
-            createDb(true);
+            createDb();
         }
         else 
         {
           util.debug("1.db exists...");
-          createDb(false, serverStart);
-          //db = new sqlite3.Database('./chatServer.sqlite3', getDataClient);
-          //db = new sqlite3.Database('./chatServer.sqlite3', getMyFriendList); 
-
+          serverStart();
         }
     });
 }
