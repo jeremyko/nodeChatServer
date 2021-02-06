@@ -7,6 +7,7 @@
 var net = require('net');
 //var fsys = require('fs');
 var util = require('util');
+const debuglog = util.debuglog('main'); 
 var chatDb = require('./db');
 
 chatDb.checkAndCreateDB( serverStart );
@@ -43,20 +44,20 @@ function ClientData (conn, userid, nick,ipaddr)
 
 function broadcastMsg ( me, notiMsg) {
     //대화상대들에게 알림
-    util.debug("broadcastMsg:"+me);
+    debuglog("broadcastMsg:"+me);
     var toNotifyList = clientConnectionsByUserID[me].friendList;
     
     for( var id in toNotifyList) { // for 고려!!
-        util.debug("toNotifyList: " + toNotifyList[id]);
+        debuglog("toNotifyList: " + toNotifyList[id]);
         if( clientConnectionsByUserID[ toNotifyList[id] ]) {
-            util.debug("notify To: " + toNotifyList[id]);
+            debuglog("notify To: " + toNotifyList[id]);
             sendMsgToClient(clientConnectionsByUserID[ toNotifyList[id] ].connection, notiMsg);    
         }
     }
 }
 
 function broadcastLogOut( remoteIpPort) {
-    util.debug("broadcastLogOut:"+remoteIpPort);
+    debuglog("broadcastLogOut:"+remoteIpPort);
     var connOfMe = clientConnectionsByRemoteIpPort[remoteIpPort];    
     if(connOfMe) {
         var notiMsg = "LOGGED-OUT|" + connOfMe.userId +TCP_DELIMITER+connOfMe.nick;
@@ -65,7 +66,7 @@ function broadcastLogOut( remoteIpPort) {
     
         for( var id in toNotifyList) { // for 고려!!
             if( clientConnectionsByUserID[ toNotifyList[id] ]) {
-                util.debug("notify To: " + toNotifyList[id]);
+                debuglog("notify To: " + toNotifyList[id]);
                 sendMsgToClient(clientConnectionsByUserID[ toNotifyList[id] ].connection, notiMsg, deleteClient);    
             }else{
                 delete clientConnectionsByUserID[connOfMe.userId];
@@ -75,7 +76,7 @@ function broadcastLogOut( remoteIpPort) {
     }
 
     function deleteClient() {
-        util.debug("deleteClient");
+        debuglog("deleteClient");
         delete clientConnectionsByUserID[connOfMe.userId];
         delete clientConnectionsByRemoteIpPort[remoteIpPort]; 
     }
@@ -103,7 +104,7 @@ function sendMsgToClient(connection, msg, cb) {
     if(cb) {
         connection.write(bufTotal, cb );
     }else{
-        connection.write(bufTotal, function () { util.debug("written out!"); });
+        connection.write(bufTotal, function () { debuglog("written out!"); });
     }
 }
 
@@ -111,7 +112,7 @@ function sendMsgToClient(connection, msg, cb) {
 function getErrString(usage, err) {
     var returnStr="";
     if(err) {
-        util.debug("err:"+err.toString());
+        debuglog("err:"+err.toString());
         returnStr = usage + "|FAIL|"+err.toString();
     }else{
         returnStr = usage + "|OK";
@@ -132,7 +133,7 @@ serverFunctions ['CHATMSG'] = function (connection, remoteIpPort, packetData) {
     if(friendOnline != undefined) {
         sendMsgToClient( clientConnectionsByUserID[friendid].connection, 'CHATMSG'+TCP_DELIMITER+packetData);
     } else {
-        util.debug('ERR: friendid is NOT ONLINE!'+ friendid);
+        debuglog('ERR: friendid is NOT ONLINE!'+ friendid);
     }
 } ;
 
@@ -148,7 +149,7 @@ serverFunctions ['DELETEFRIEND'] = function (connection, remoteIpPort, packetDat
     chatDb.removeFriendId(userid, friendid, whenFriendRemoveResultComes);
 
     function whenFriendRemoveResultComes(err) {
-        util.debug("whenAddFriendResultComes");
+        debuglog("whenAddFriendResultComes");
         //DELETEFRIEND|OK|friendid
         //DELETEFRIEND|FAIL|err string
         var returnStr = getErrString( 'DELETEFRIEND', err);
@@ -162,13 +163,13 @@ serverFunctions ['DELETEFRIEND'] = function (connection, remoteIpPort, packetDat
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['CHKID'] = function (connection, remoteIpPort, packetData) {
-    util.debug('function CHKID:'+ packetData);
+    debuglog('function CHKID:'+ packetData);
     //"userid"
     var aryData = packetData.split(TCP_DELIMITER);   
     chatDb.checkUserId(aryData, whenCheckIdCompletes);
 
     function whenCheckIdCompletes(err,userExists) {
-        util.debug("whenCheckIdCompletes");
+        debuglog("whenCheckIdCompletes");
         var returnStr = "";
         if( userExists > 0) { //user already exists!
             returnStr = "CHKID|FAIL|userid already exists!";
@@ -183,14 +184,14 @@ serverFunctions ['CHKID'] = function (connection, remoteIpPort, packetData) {
 
 ////////////////////////////////////////////////////////////////////////////////
 serverFunctions ['REGISTER'] = function (connection, remoteIpPort, packetData) {
-    util.debug('function REGISTER:'+ packetData);
+    debuglog('function REGISTER:'+ packetData);
     //"userid|nick|name|passwd|tel"
     //"userid|passwd|nick"
     var aryData = packetData.split(TCP_DELIMITER);   
     chatDb.registerUser(aryData, whenRegisterCompletes);
 
     function whenRegisterCompletes(err) {
-        util.debug("whenRegisterCompletes");
+        debuglog("whenRegisterCompletes");
         var returnStr = getErrString( 'REGISTER', err);
 
         sendMsgToClient(connection, returnStr);
@@ -209,7 +210,7 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
 
     function whenIdValidationResultComes(err, idExists, nick) {
         friendNick = nick;
-        util.debug("whenIdValidationResultComes:"+ idExists+" /nick:"+friendNick);
+        debuglog("whenIdValidationResultComes:"+ idExists+" /nick:"+friendNick);
         if( idExists == 0) {
             sendMsgToClient(connection, "ADDFRIEND|FAIL|No Such Friend ID");
             return;
@@ -223,7 +224,7 @@ serverFunctions ['ADDFRIEND'] = function (connection, remoteIpPort, packetData) 
     }
 
     function whenAddFriendResultComes(err) {
-        util.debug("whenAddFriendResultComes");
+        debuglog("whenAddFriendResultComes");
         //ADDFRIEND|OK|friendid|online
         //ADDFRIEND|FAIL|err string
 
@@ -254,13 +255,13 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
     var curCnt = 0;
     var aryData = packetData.split(TCP_DELIMITER);   
     var userid = aryData[0];
-    util.debug("userid: " + userid);
+    debuglog("userid: " + userid);
     //대회목록. get my friend list, first get total count
 
     chatDb.getMyFriendCount(userid, whenMyListCountComes);
 
     function whenMyListCountComes(err, totalCnt) {
-        util.debug("whenMyListCountComes:"+ totalCnt);
+        debuglog("whenMyListCountComes:"+ totalCnt);
         if( totalCnt == 0) {
             sendMsgToClient(connection, "FRIENDLIST|");
             return;
@@ -270,10 +271,10 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
     }
 
     function whenMyListComes(row, totalCnt) {
-        util.debug("whenMyListComes:"+ totalCnt);
+        debuglog("whenMyListComes:"+ totalCnt);
 
         curCnt++;
-        util.debug("whenMyListComes:curCnt=>"+curCnt+"totalCnt=>"+ totalCnt+ 
+        debuglog("whenMyListComes:curCnt=>"+curCnt+"totalCnt=>"+ totalCnt+ 
             " /friendid:" +row.friendid+"/nick:" +row.nick);
         friendList.push (row.friendid); 
         nickList.push (row.nick); 
@@ -282,7 +283,7 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
         clientConnectionsByRemoteIpPort[remoteIpPort].friendList.push (row.friendid); 
         //clientConnectionsByConn[connection].friendList.push (rows.friend.toString()); 
 
-        util.debug("friendList.length: " + friendList.length);
+        debuglog("friendList.length: " + friendList.length);
 
         if(curCnt === totalCnt) {
             //got all rows=> send back to client
@@ -302,7 +303,7 @@ serverFunctions ['FRIENDLIST'] = function (connection, remoteIpPort, packetData)
                 friendListStr += TCP_DELIMITER;
             }
 
-            util.debug("friendListStr: " + friendListStr); // FRIENDLIST|id|nick|online|...
+            debuglog("friendListStr: " + friendListStr); // FRIENDLIST|id|nick|online|...
             
             sendMsgToClient(connection, friendListStr);
 
@@ -321,23 +322,23 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
     var aryData = packetData.split(TCP_DELIMITER);   
     var userid = aryData[0];
     var passwd = aryData[1];
-    util.debug("userid: " + userid);
-    util.debug("passwd: " + passwd);
+    debuglog("userid: " + userid);
+    debuglog("passwd: " + passwd);
     
     //인증
     chatDb.authUser(userid,passwd, whenAuthCompletes);
     
     function whenAuthCompletes(err, result, nick) {
-        util.debug("whenAuthCompletes");
+        debuglog("whenAuthCompletes");
         var returnStr = "";
         if(0===result) {
-            util.debug("err: No data found");
+            debuglog("err: No data found");
             returnStr = "LOGIN|FAIL|Check your id and password!";
         } else {
             returnStr = getErrString( 'LOGIN', err);
 
             if(!err) {
-                util.debug("로그인 성공시, 사용자정보를 저장.["+userid+"] nick["+nick+"] ip["+ remoteIpPort+"]");
+                debuglog("로그인 성공시, 사용자정보를 저장.["+userid+"] nick["+nick+"] ip["+ remoteIpPort+"]");
                 
                 //clientConnectionsByUserID[userid] = connection;
                 clientConnectionsByUserID[userid] = new ClientData( connection,userid ,nick, remoteIpPort);  
@@ -346,7 +347,7 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
                 clientConnectionsByRemoteIpPort[remoteIpPort] = new ClientData( connection,userid ,nick, remoteIpPort);  
                 
             } else {
-                util.debug("로그인 ERROR");
+                debuglog("로그인 ERROR");
             }
         }
         sendMsgToClient(connection, returnStr);

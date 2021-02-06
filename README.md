@@ -10,10 +10,11 @@ client: https://github.com/jeremyko/nodeChatClient
 
     npm install sqlite3
 
+    export NODE_DEBUG=main,db
+
     node main.js
 
 - The database file will be created automatically if not exists.
-
 
 - Packet data format consist of the header and body.
 
