@@ -86,15 +86,15 @@ function broadcastLogOut( remoteIpPort) {
 var serverFunctions   = {};
 
 function sendMsgToClient(connection, msg, cb) {
-    var buffMsg = new Buffer(msg);
+    var buffMsg = Buffer.from(msg);
     var msgLen = buffMsg.length ;
     //packet length info
-    var bufPacketLenInfo = new Buffer(4);
+    var bufPacketLenInfo = Buffer.alloc(4);
     bufPacketLenInfo.fill();
     var headerLen= bufPacketLenInfo.length;
     bufPacketLenInfo.writeUInt32BE(msgLen, 0); 
     
-    var bufTotal = new Buffer(  headerLen + msgLen ); //packet length info + msg
+    var bufTotal = Buffer.alloc(  headerLen + msgLen ); //packet length info + msg
     bufTotal.fill();
     //console.log('bufTotal.length =%d', bufTotal.length);    
     bufPacketLenInfo.copy(bufTotal, 0, 0, headerLen);
@@ -359,7 +359,7 @@ serverFunctions ['LOGIN'] = function (connection, remoteIpPort, packetData) {
 //Main
 ////////////////////////////////////////////////////////////////////////////////
 var server = net.createServer( function(c) {
-    var accumulatingBuffer = new Buffer(0); 
+    var accumulatingBuffer = Buffer.alloc(0); 
     var totalPacketLen   = -1; 
     var accumulatingLen  =  0;
     var recvedThisTimeLen=  0;
@@ -382,7 +382,7 @@ var server = net.createServer( function(c) {
         
         recvedThisTimeLen = data.length;
         console.log('recvedThisTimeLen='+ recvedThisTimeLen);
-        var tmpBuffer = new Buffer( accumulatingLen + recvedThisTimeLen );
+        var tmpBuffer = Buffer.alloc( accumulatingLen + recvedThisTimeLen );
         accumulatingBuffer.copy(tmpBuffer);
         data.copy ( tmpBuffer, accumulatingLen  ); // offset for accumulating
         accumulatingBuffer = tmpBuffer; 
@@ -412,7 +412,7 @@ var server = net.createServer( function(c) {
             console.log('누적된 데이터(' + accumulatingLen +') >= 헤더+데이터 길이(' + (totalPacketLen+PACKET_HEADER_LEN) +')' );
             console.log( 'accumulatingBuffer= ' + accumulatingBuffer );
             
-            var aPacketBufExceptHeader = new Buffer( totalPacketLen  ); // a whole packet is available...
+            var aPacketBufExceptHeader = Buffer.alloc( totalPacketLen  ); // a whole packet is available...
             console.log( 'aPacketBufExceptHeader len= ' + aPacketBufExceptHeader.length );
             accumulatingBuffer.copy( aPacketBufExceptHeader, 0, PACKET_HEADER_LEN, accumulatingBuffer.length); // 
             
@@ -426,8 +426,7 @@ var server = net.createServer( function(c) {
             ////////////////////////////////////////////////////////////////////
             
             //나머지 버퍼 재구성
-            //var newBufRebuild = new Buffer( accumulatingBuffer.length );
-            var newBufRebuild = new Buffer( accumulatingBuffer.length - (totalPacketLen + PACKET_HEADER_LEN) ); //20150628 fixed: issued by mattipr
+            var newBufRebuild = Buffer.alloc( accumulatingBuffer.length - (totalPacketLen + PACKET_HEADER_LEN) ); //20150628 fixed: issued by mattipr
             newBufRebuild.fill();
             accumulatingBuffer.copy( newBufRebuild, 0, totalPacketLen + PACKET_HEADER_LEN, accumulatingBuffer.length  );
             
