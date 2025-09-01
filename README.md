@@ -1,10 +1,8 @@
-nodeChatServer
-==============
+# nodeChatServer
+
 [https://jeremyko.github.io/2012/12/25/nodejs-tcp-chatting-server-with-qt.html](https://jeremyko.github.io/2012/12/25/nodejs-tcp-chatting-server-with-qt.html)
 
-chat TCP server written in node.js (considering data fragmentation)
-client: https://github.com/jeremyko/nodeChatClient
-
+TCP chat server written in node.js (considering data fragmentation)
 
 - How to run server :
 
@@ -22,5 +20,9 @@ client: https://github.com/jeremyko/nodeChatClient
       
       body  : Message string
 
+# client
 
+I wrote a QT GUI chat client.
+
+https://github.com/jeremyko/nodeChatClient
  
